@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<meta http-equiv="Pragma" content="no-cache">
+		<meta http-equiv="Cache-Control" content="no-cache">
+		<title>GPX結合</title>
+
+		<!-- スタイルシート -->
+		<style type="text/css">
+			/* ファイル名(基本) */
+			.file_name_base {
+				color: black;
+			}
+			/* ファイル名(エラー) */
+			.file_name_error {
+				color: red;
+			}
+		</style>
+		
+	</head>
+
+	<!-- 表示部 -->
+	<body>
+		<div>
+			<input multiple type="file" id="gpxFile" accept=".gpx" onclick="clearMergedGpx();" onchange="displayFileList(this);" />
+		</div>
+		<div>
+			<div style="padding-top: 20px;">
+				<span>【選択したファイルは、ファイル名の昇順にソートされ表示、処理されます】</span>
+			</div>
+			<ul id="fileList" style="list-style-type: none;">
+			</ul>
+		</div>
+		<div>
+			<input type="button" id="doClear" onclick="clearFileList();" value="選択したファイルをクリアする" />
+			<input type="button" id="doMerge" onclick="mergeGpx();" value="結合する" />
+		</div>
+		<div>
+			<div>
+				<textarea readonly id="mergedGpx" style="font-family: monospace;height: 200px;width: 80%;">
+				</textarea>
+			</div>
+			<div style="padding-top: 20px;">
+				<span>総バイト数：</span><input readonly id="mergedGpxSize" type="text" />
+			</div>
+			<div>
+				<a id="doDownload" onclick="return doDownload();" href="">ダウンロードする</a>
+			</div>
+		</div>
+	</body>
+
+	<!-- 処理部 -->
+	<script>
+		// [public]選択されたファイルの配列(File)
+		var selectedFiles = new Array(0);
+		// [public]結合したGPXファイルのXML文書(Document)
+		var gpxDom = null;
+
+		/*
+		結合したGPXファイルのXML文書のテキストをクリアする
+		*/
+		function clearMergedGpx() {
+			document.getElementById("mergedGpx").value = "";
+			document.getElementById("mergedGpxSize").value = "";
+		}
+  
+		/*
+		選択されたファイル名をクリアする
+		*/
+		function clearFileList() {
+			document.getElementById("gpxFile").value = "";
+			clearMergedGpx();
+			selectedFiles = new Array(0);
+			gpxDom = null;
+			var ul = document.getElementById("fileList");
+			removeAllChild(ul);
+		}
+
+		/*
+		選択されたファイル名を表示する
+		*/
+		function displayFileList(inputFile) {
+			if (!isUndef(inputFile)) {
+				if (!isUndef(inputFile.files) && (inputFile.files.length > 0)) {
+					// 選択された複数ファイルのリストを配列に変換する
+					var files = new Array(inputFile.files.length);
+					for (var i = 0; i < inputFile.files.length; i++){
+						files[i] = inputFile.files[i];
+					}
+					// 選択された複数ファイルの配列をファイル名でソートする
+					selectedFiles = selectedFiles.concat(files);
+					selectedFiles.sort(compareName);
+				}
+			}
+			// 選択済みファイル名のリスト(ulタグ)に表示する
+			var ul = document.getElementById("fileList");
+			removeAllChild(ul);
+			var i = 1;
+			selectedFiles.forEach(
+				function (file) {
+					// liタグとspanタグを生成してファイル名を表示する
+					var li = document.createElement("li");
+					li.id = "file_" + String(i);
+					ul.appendChild(li);
+					var span = document.createElement("span");
+					span.appendChild(document.createTextNode(String(i) + ". " + file.name));
+					// 拡張子がgpxでない場合、エラーとして表示する
+					span.classList.add((isGpxFile(file) ? "file_name_base" : "file_name_error"));
+					li.appendChild(span);
+					i++;
+				}
+			);
+		}
+
+		/*
+		選択されたGPXファイルを結合する
+		*/
+		function mergeGpx() {
+			// 結合可能かチェックする
+			if (!checkMergeGpx()) {
+				return;
+			}
+			// ファイルを１０個以上選択している場合、処理時間が長くなることを警告する
+			if (selectedFiles.length > 9) {
+				if (!confirm("ファイルの数が多い場合、処理に時間がかかる可能性があります。\n結合処理を実行しますか？")) {
+					return;
+				}
+			}
+			// 結合処理を開始する
+			document.body.style.cursor = "wait";
+			document.getElementById("mergedGpx").value = "結合中...";
+			document.getElementById("mergedGpxSize").value = "";
+			// 結合したGPXファイルのXML文書と選択された全てのGPXファイルをXML文書を初期化する
+			gpxDom = null;
+			var doms = new Array(selectedFiles.length);
+			// 選択された全てのGPXファイルをXML文書として読み込む
+			var err = false;
+			var i = 0;
+			selectedFiles.forEach(
+				function (file) {
+					try {
+						// GPXファイルを読み込み、XML文書に変換する
+						var reader = new FileReader();
+						reader.onload = function(event) {
+							try {
+								var xml = event.target.result;
+								var parser = new DOMParser();
+								doms[i] = parser.parseFromString(xml, "text/xml");
+								var trk = doms[i].getElementsByTagName("trk")[0];
+								var name = doms[i].createElement("name");
+								name.namespaceURI = trk.namespaceURI;
+								// トラックの名前にファイル名を設定する
+								name.appendChild(doms[i].createTextNode(getFileName(file.name)));
+								trk.appendChild(name);
+								i++;
+							} catch(e) {
+								alert("ファイル読込中にエラーが発生しました。\nファイル名：" + file.name + "\n理由：" + e.message + "\n" + e.stack);
+								err = true;
+								return;
+							}
+						};
+						reader.readAsText(file);
+					} catch(e) {
+						alert("ファイル読込中にエラーが発生しました。\nファイル名：" + file.name + "\n理由：" + e.message + "\n" + e.stack);
+						err = true;
+						return;
+					}
+				}
+			);
+			// FileReaderの非同期処理を待つための処理
+			var wait = function() {
+				// エラーを検知したら処理を終了する
+				if (err) {
+					document.getElementById("mergedGpx").value = "";
+					document.getElementById("mergedGpxSize").value = "";
+					return false;
+				}
+				// 全てのGPXファイルのXML文書が読み込めるまで処理を待つ(監視時間：100[ms])
+				for (var j = 0; j < doms.length; j++) {
+					if (doms[j] == null) {
+						setTimeout(wait, 100);
+						return;
+					}
+				}
+				// 最初のGPXファイルの時間(timeタグ)を削除し、ベースのXML文書にする
+				removeChildByTagName(doms[0].getElementsByTagName("gpx")[0], "time");
+				gpxDom = doms[0];
+				// ２番目以降のGPXファイルのトラック情報(trkタグ)をベースのXML文書に追加する
+				for (var j = 1; j < doms.length; j++) {
+					console.log("doms[" + String(j) + "]" + doms[j]);
+					var trk = doms[j].getElementsByTagName("trk")[0];
+					gpxDom.getElementsByTagName("gpx")[0].appendChild(trk);
+				}
+				// XML文書を表示する
+				var gpxXmlText = getXmlTagText(gpxDom) + gpxDom.querySelector("gpx").outerHTML;
+				var textarea = document.getElementById("mergedGpx");
+				textarea.value = gpxXmlText;
+				var size = document.getElementById("mergedGpxSize");
+				size.value = gpxXmlText.length.toLocaleString();
+				document.body.style.cursor = "auto";
+				return;
+			}
+			wait();
+
+		}
+
+		/*
+		結合可能かチェックする
+			@return チェック結果（true：可、false：否）
+		*/
+		function checkMergeGpx() {
+			// ファイルを２つ以上選択している
+			if (selectedFiles.length < 2) {
+				alert("ファイルを２つ以上選択してください。");
+				return false;
+			}
+			// 拡張子がgpxのファイルを選択している
+			var err = false;
+			selectedFiles.forEach(
+				function (file) {
+					if (!isGpxFile(file)) {
+						err = true;
+						return;　// breakの代わり
+					}
+				}
+			);
+			if (err) {
+				alert("拡張子がgpxでないファイルが選択されています。\n選択し直してください。");
+				return false;				
+			}
+			// マージ処理可
+			return true;
+		}
+
+		/*
+		結合したGPXファイルをダウンロードする
+			@return 後続処理（true：続行、false：中断）
+		*/
+		function doDownload() {
+			try {
+				var gpxText = document.getElementById("mergedGpx").value;
+				// 結合処理済を確認する
+				if (gpxText.length == 0) {
+					alert("結合処理を行ってください。");
+					return;
+				}
+				var fileName = getFileName(selectedFiles[0].name) + "_merged.gpx";
+				// GoogleMapのインポートのサイズ上限を警告する
+				if (gpxText.length > 5000000) {
+					if (!confirm("サイズが約5MBを超える場合、GoogleMapでインポートできません。\nダウンロードしますか？")) {
+						return false;
+					}
+				}
+				/* ブラウザでサポートされた３種類の方法でファイルをダウンロードする　*/ 
+				if (window.navigator.msSaveBlob) {
+					// (方法1) msSaveBlobによるダウンロード(IE/Edge)
+					window.navigator.msSaveBlob(new Blob([gpxText]), fileName);
+					return false;
+				}
+				// 以下の２種類の方法はaタグの遷移を利用する
+				var href;
+				if (window.URL && window.URL.createObjectURL) {
+					// (方法2) createObjectURLによるダウンロード
+					href = URL.createObjectURL(new Blob([gpxText]));
+				} else {
+					// (方法3) Data URI Schemeによるダウンロード
+					// Data URI Schemeのダウンロードのサイズ上限を警告する
+					if (gpxText.length > 1000000) {
+						if (!confirm("サイズが約1.2MBを超える場合、ブラウザが無反応となる可能性があります。\nコピペでファイルを作成してください。\nダウンロードしますか？")) {
+							return false;
+						}
+					}
+					href = "data:application/octet-stream;base64," +
+					encodeURIComponent(btoa(unescape(encodeURIComponent(gpxText))));;
+				}
+				var link = document.getElementById("doDownload");
+				link.setAttribute("href", href);
+				link.download = fileName;
+				return true;
+			} catch(e) {
+				alert("ダウンロード中にエラーが発生しました。\n理由：" + e.message + "\n" + e.stack);
+				return false;
+			}
+		}
+
+		/*
+		オブジェクトがundefinedかどうか判定する
+			@param o オブジェクト
+			@return 判定結果（true:undefinedである、false:undefinedでない）
+		*/
+		function getXmlTagText(doc) {
+			return "<?xml version=\"" + doc.xmlVersion + "\" encoding=\"" + doc.xmlEncoding + "\"?>";
+		}
+
+		/*
+		オブジェクトがundefinedかどうか判定する
+			@param o オブジェクト
+			@return 判定結果（true:undefinedである、false:undefinedでない）
+		*/
+		function isUndef(o) {
+			return o === undefined;
+		}
+
+		/*
+		名前で比較する(昇順)する
+			@param a ファイルオブジェクト
+			@param b ファイルオブジェクト
+			@return 昇順結果
+		*/
+		function compareName(a, b) {
+			return ((a.name > b.name) ? 1 : -1);
+		}
+
+		/*
+		ファイル名(拡張子なし)を取得する
+			@param name ファイル名(拡張子付き)
+			@return ファイル名(拡張子なし)
+		*/
+		function getFileName(name) {
+			return parseFileName(name)[1];
+		}
+
+		/*
+		ファイル名の拡張子を取得する
+			@param name ファイル名(拡張子付き)
+			@return 拡張子
+		*/
+		function getExtection(name) {
+			return parseFileName(name)[2];
+		}
+
+		/*
+		ファイル名をパースする
+			@param name ファイル名(拡張子付き)
+			@return [0]ファイル名(拡張子付き)、[1]ファイル名(拡張子なし)、[2]拡張子
+		*/
+		function parseFileName(name) {
+			var reg = /(.*)(?:\.([^.]+$))/;
+			return name.match(reg);
+		}
+
+		/*
+		拡張子がGPXかどうか判定する
+			@param file ファイル
+			@return 判定結果（true:GPXである、false:GPXでない）
+		*/
+		function isGpxFile(file) {
+			var ext = getExtection(file.name);
+			if (typeof ext == "string") {
+				return ("gpx" == ext.toLowerCase());
+			}
+			return false;
+		}
+
+		/*
+		DOMの子要素をタグ名で削除する
+			@param dom DOM
+			@param tagName 削除する要素のタグ名
+		*/
+		function removeChildByTagName(dom, tagName) {
+			var removeNodes = new Array(0);	
+			for (var i = 0; i < dom.childNodes.length; i++) {
+				if (dom.childNodes[i].tagName.toLowerCase() == tagName.toLowerCase()) {
+					removeNodes.push(dom.childNodes[i]);
+				}
+			}
+			for (var i = 0; i < removeNodes.length; i++) {
+				dom.removeChild(removeNodes[i]);
+			}
+		}
+
+		/*
+		DOMの子要素を全て削除する
+			@param dom DOM
+		*/
+		function removeAllChild(dom) {
+			if (!isUndef(dom)) {
+				while (dom.firstChild) {
+					dom.removeChild(dom.firstChild);
+				}
+			}
+		}		
+	</script>
+</html>
