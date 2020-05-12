@@ -147,12 +147,8 @@
 								var xml = event.target.result;
 								var parser = new DOMParser();
 								doms[i] = parser.parseFromString(xml, "text/xml");
-								var trk = doms[i].getElementsByTagName("trk")[0];
-								var name = doms[i].createElement("name");
-								name.namespaceURI = trk.namespaceURI;
-								// トラックの名前にファイル名を設定する
-								name.appendChild(doms[i].createTextNode(getFileName(file.name)));
-								trk.appendChild(name);
+								// トラックの名前を設定する
+								setTrackName(doms[i], file);
 								i++;
 							} catch(e) {
 								alert("ファイル読込中にエラーが発生しました。\nファイル名：" + file.name + "\n理由：" + e.message + "\n" + e.stack);
@@ -188,9 +184,10 @@
 				gpxDom = doms[0];
 				// ２番目以降のGPXファイルのトラック情報(trkタグ)をベースのXML文書に追加する
 				for (var j = 1; j < doms.length; j++) {
-					console.log("doms[" + String(j) + "]" + doms[j]);
-					var trk = doms[j].getElementsByTagName("trk")[0];
-					gpxDom.getElementsByTagName("gpx")[0].appendChild(trk);
+					while (0 < doms[j].getElementsByTagName("trk").length) {
+						var trk = doms[j].getElementsByTagName("trk")[0];
+						gpxDom.getElementsByTagName("gpx")[0].appendChild(trk);
+					}
 				}
 				// XML文書を表示する
 				var gpxXmlText = getXmlTagText(gpxDom) + gpxDom.querySelector("gpx").outerHTML;
@@ -285,7 +282,27 @@
 		}
 
 		/*
-		オブジェクトがundefinedかどうか判定する
+		トラックの名前を設定する
+		トラックの名前が存在しない場合、ファイル名をトラックの名前に設定する
+			@param dom DOM
+		*/
+		function setTrackName(dom, file) {
+			for (var i = 0; i < dom.getElementsByTagName("trk").length; i++) {
+				var trk = dom.getElementsByTagName("trk")[i];
+				var trkNames = getChildByTagName(trk, "name");
+				// トラックの名前が存在しない場合
+				if (trkNames.length == 0) {
+					var trkName = dom.createElement("name");
+					trkName.namespaceURI = trk.namespaceURI;
+					// トラックの名前にファイル名を設定する
+					trkName.appendChild(dom.createTextNode(getFileName(file.name)));
+					trk.appendChild(trkName);
+				}
+			}
+		}
+
+		/*
+		XML宣言を取得する
 			@param o オブジェクト
 			@return 判定結果（true:undefinedである、false:undefinedでない）
 		*/
@@ -354,6 +371,21 @@
 		}
 
 		/*
+		DOMの子要素をタグ名で取得する
+			@param dom DOM
+			@param tagName 取得する要素のタグ名
+		*/
+		function getChildByTagName(dom, tagName) {
+			var getNodes = new Array(0);	
+			for (var i = 0; i < dom.childNodes.length; i++) {
+				if (dom.childNodes[i].tagName.toLowerCase() == tagName.toLowerCase()) {
+					getNodes.push(dom.childNodes[i]);
+				}
+			}
+			return getNodes;
+		}
+
+		/*
 		DOMの子要素をタグ名で削除する
 			@param dom DOM
 			@param tagName 削除する要素のタグ名
@@ -380,6 +412,6 @@
 					dom.removeChild(dom.firstChild);
 				}
 			}
-		}		
+		}
 	</script>
 </html>
