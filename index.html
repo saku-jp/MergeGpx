@@ -104,9 +104,17 @@
 					li.id = "file_" + String(i);
 					ul.appendChild(li);
 					var span = document.createElement("span");
-					span.appendChild(document.createTextNode(String(i) + ". " + file.name));
-					// 拡張子がgpxでない場合、エラーとして表示する
-					span.classList.add((isGpxFile(file) ? "file_name_base" : "file_name_error"));
+					var errText = "";
+					if (!isGpxFile(file)) {
+						// 拡張子がgpxでない場合、エラーとして表示する
+						errText = "【拡張子がgpxでない】";
+					} else if (isEmptyFile(file)) {
+						// ファイルが空の場合、エラーとして表示する
+						errText = "【ファイルが空】";
+					}
+					// エラーテキストがある場合、エラーとして表示する
+					span.classList.add(((errText == "") ? "file_name_base" : "file_name_error"));
+					span.appendChild(document.createTextNode(String(i) + ". " + errText + file.name));
 					li.appendChild(span);
 					i++;
 				}
@@ -212,7 +220,7 @@
 				alert("ファイルを２つ以上選択してください。");
 				return false;
 			}
-			// 拡張子がgpxのファイルを選択している
+			// 選択しているファイルをチェックしている
 			var err = false;
 			selectedFiles.forEach(
 				function (file) {
@@ -220,10 +228,14 @@
 						err = true;
 						return;　// breakの代わり
 					}
+					if (isEmptyFile(file)) {
+						err = true;
+						return;　// breakの代わり
+					}
 				}
 			);
 			if (err) {
-				alert("拡張子がgpxでないファイルが選択されています。\n選択し直してください。");
+				alert("拡張子がgpxでない、もしくは空のファイルが選択されています。\n選択し直してください。");
 				return false;				
 			}
 			// マージ処理可
@@ -368,6 +380,15 @@
 				return ("gpx" == ext.toLowerCase());
 			}
 			return false;
+		}
+
+		/*
+		ファイルが空かどうか判定する
+			@param file ファイル
+			@return 判定結果（true:空である、false:空でない）
+		*/
+		function isEmptyFile(file) {
+			return (file.size == 0);
 		}
 
 		/*
