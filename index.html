@@ -17,7 +17,7 @@
 				color: red;
 			}
 		</style>
-		
+
 	</head>
 
 	<!-- 表示部 -->
@@ -64,7 +64,7 @@
 			document.getElementById("mergedGpx").value = "";
 			document.getElementById("mergedGpxSize").value = "";
 		}
-  
+
 		/*
 		選択されたファイル名をクリアする
 		*/
@@ -236,7 +236,7 @@
 			);
 			if (err) {
 				alert("拡張子がgpxでない、もしくは空のファイルが選択されています。\n選択し直してください。");
-				return false;				
+				return false;
 			}
 			// マージ処理可
 			return true;
@@ -261,7 +261,7 @@
 						return false;
 					}
 				}
-				/* ブラウザでサポートされた３種類の方法でファイルをダウンロードする　*/ 
+				/* ブラウザでサポートされた３種類の方法でファイルをダウンロードする　*/
 				if (window.navigator.msSaveBlob) {
 					// (方法1) msSaveBlobによるダウンロード(IE/Edge)
 					window.navigator.msSaveBlob(new Blob([gpxText]), fileName);
@@ -397,7 +397,7 @@
 			@param tagName 取得する要素のタグ名
 		*/
 		function getChildByTagName(dom, tagName) {
-			var getNodes = new Array(0);	
+			var getNodes = new Array(0);
 			for (var i = 0; i < dom.childNodes.length; i++) {
 				if (dom.childNodes[i].tagName.toLowerCase() == tagName.toLowerCase()) {
 					getNodes.push(dom.childNodes[i]);
@@ -412,10 +412,12 @@
 			@param tagName 削除する要素のタグ名
 		*/
 		function removeChildByTagName(dom, tagName) {
-			var removeNodes = new Array(0);	
+			var removeNodes = new Array(0);
 			for (var i = 0; i < dom.childNodes.length; i++) {
-				if (dom.childNodes[i].tagName.toLowerCase() == tagName.toLowerCase()) {
-					removeNodes.push(dom.childNodes[i]);
+				if (!isUndef(dom.childNodes[i].tagName)) {
+					if (dom.childNodes[i].tagName.toLowerCase() == tagName.toLowerCase()) {
+						removeNodes.push(dom.childNodes[i]);
+					}
 				}
 			}
 			for (var i = 0; i < removeNodes.length; i++) {
