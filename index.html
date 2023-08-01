@@ -399,8 +399,11 @@
 		function getChildByTagName(dom, tagName) {
 			var getNodes = new Array(0);
 			for (var i = 0; i < dom.childNodes.length; i++) {
-				if (dom.childNodes[i].tagName.toLowerCase() == tagName.toLowerCase()) {
-					getNodes.push(dom.childNodes[i]);
+				// ノードにタグ名がある場合のみ（値は処理しない）
+				if (dom.childNodes[i].tagName != null) {
+					if (dom.childNodes[i].tagName.toLowerCase() == tagName.toLowerCase()) {
+						getNodes.push(dom.childNodes[i]);
+					}
 				}
 			}
 			return getNodes;
